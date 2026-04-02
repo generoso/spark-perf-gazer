@@ -64,5 +64,8 @@ spark-warehouse-tests/
 .bloop/
 metals.sbt
 
+# Jupyter
+.ipynb_checkpoints/
+
 # MkDocs
 site/
