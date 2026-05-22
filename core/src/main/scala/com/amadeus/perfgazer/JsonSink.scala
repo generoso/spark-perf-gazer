@@ -70,10 +70,17 @@ class JsonSink(
   override def write(r: Report): Unit =
     queues.find(q => q.reportType == r.reportType).foreach(_.write(r))
 
+  /** Total I/O time in nanoseconds across all report writers (flush + promote). */
+  def totalIoTimeNanos: Long = queues.map(_.ioTimeNanos).sum
+
+  /** Total I/O time in milliseconds across all report writers (flush + promote). */
+  def totalIoTimeMs: Long = totalIoTimeNanos / 1000000L
+
   override def close(): Unit = {
     // close writers
     queues.foreach(_.close())
-    logger.info("JsonSink writers closed.")
+    logger.info("JsonSink writers closed. Total I/O time: {}ms (mode: {})", totalIoTimeMs: Any, mode: Any)
+    println(s"[PerfGazer] JsonSink closed. Total I/O time: ${totalIoTimeMs}ms (mode: $mode)")
   }
 
   /** String representation of the sink

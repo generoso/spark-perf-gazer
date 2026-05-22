@@ -9,6 +9,7 @@ import org.slf4j.{Logger, LoggerFactory}
 
 import java.io.{File, FileWriter, PrintWriter}
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 import scala.collection.mutable.ListBuffer
 import com.amadeus.perfgazer.reports.{Report, ReportType}
 
@@ -22,6 +23,9 @@ object BufferedReportWriter {
 class BufferedReportWriter(config: Config, reportType: ReportType, dir: String, filePromoter: FilePromoter) {
   val logger: Logger = LoggerFactory.getLogger(getClass.getName)
   private val formats: AnyRef with Formats = Serialization.formats(NoTypeHints)
+
+  /** Accumulated I/O time in nanoseconds (flush to disk + promote to remote). */
+  val ioTimeNanos: AtomicLong = new AtomicLong(0L)
 
   // mutable variables
   private var currentFile = newFilePrintWriter()
@@ -39,9 +43,11 @@ class BufferedReportWriter(config: Config, reportType: ReportType, dir: String, 
   def flush(): Unit = {
     if (buffer.nonEmpty) {
       logger.trace("Flushing reports from buffer '{}' to file '{}'", reportType: Any, currentFile.file: Any)
+      val t0 = System.nanoTime()
       buffer.foreach(r => currentFile.writer.println(asJson(r)(formats))) // scalastyle:ignore regex
       // flush writer to write to disk
       currentFile.writer.flush()
+      ioTimeNanos.addAndGet(System.nanoTime() - t0)
       // clear reports
       buffer.clear()
     }
@@ -52,16 +58,20 @@ class BufferedReportWriter(config: Config, reportType: ReportType, dir: String, 
 
   def close(): Unit = {
     flush()
+    val t0 = System.nanoTime()
     currentFile.writer.close()
     filePromoter.promote(currentFile.file)
+    ioTimeNanos.addAndGet(System.nanoTime() - t0)
     logger.trace("Closed buffer '{}'", reportType)
   }
 
   private def switchToNewRollingFile(): Unit = {
     logger.trace("Rolling file {} has reached the fileSizeLimit threshold ({} bytes)...",
       currentFile.file.getPath, currentFile.file.length())
+    val t0 = System.nanoTime()
     currentFile.writer.close()
     filePromoter.promote(currentFile.file)
+    ioTimeNanos.addAndGet(System.nanoTime() - t0)
     currentFile = newFilePrintWriter()
     logger.trace("Switched to new rolling file {}.", currentFile.file.getPath)
   }

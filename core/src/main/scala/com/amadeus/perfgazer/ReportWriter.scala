@@ -21,6 +21,9 @@ class ReportWriter(val config: Config, val reportType: ReportType, val dir: Stri
   // Buffered writer used by the executor thread
   private val bufferedWriter = new BufferedReportWriter(config, reportType, dir, filePromoter)
 
+  /** Accumulated I/O time in nanoseconds for this writer (flush + promote). */
+  def ioTimeNanos: Long = bufferedWriter.ioTimeNanos.get()
+
   // Indicates if the writer has been closed via close() method
   private val writerClosed = new AtomicBoolean(false)
 
